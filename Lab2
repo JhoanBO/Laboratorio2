@@ -1,0 +1,99 @@
+#include "ThingSpeak.h"
+#include "WiFi.h"
+#include "DHT.h"
+#include "Adafruit_BMP085.h"
+
+#define pin1 21       //Pin del DHT11.
+#define pin2 32       //Pin del DHT22.
+
+const char* ssid = "El Manzanareno";                        //SSID de vuestro router.
+const char* password = "rubeliorivera1972";                //Contraseña de vuestro router.
+
+unsigned long channelID = 2226133;                //ID de vuestro canal.
+const char* WriteAPIKey = "TW65Q63C4OMKQTAX";     //Write API Key de vuestro canal.
+
+const int ledPinConnected = 23;  // LED para indicar conexión exitosa
+const int ledPinConnecting = 22;  // LED para indicar conexión exitosa
+const int ledPinDisconnected = 2;  // LED para indicar falta de conexión
+
+
+WiFiClient cliente;
+
+DHT dht1(pin1, DHT11);    //El azul.
+DHT dht2(pin2, DHT22);    //El blanco.
+
+Adafruit_BMP085 bmp;
+
+void setup() {
+  pinMode(ledPinConnected, OUTPUT);
+  pinMode(ledPinDisconnected, OUTPUT);
+  pinMode(ledPinConnecting, OUTPUT);
+
+  Serial.begin(9600);
+  Serial.println("Test de sensores:");
+
+  WiFi.begin(ssid,password);
+  digitalWrite(ledPinConnecting, HIGH);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+  }
+  Serial.println("Wifi conectado!");
+  digitalWrite(ledPinConnected, HIGH);
+  digitalWrite(ledPinConnecting, LOW);
+  
+  ThingSpeak.begin(cliente);
+
+  dht1.begin();
+}
+
+void loop() {
+      // Verificar la conexión Wi-Fi
+  if (WiFi.status() != WL_CONNECTED) {
+    // Si la conexión se pierde, apagar el LED de conexión y encender el LED de desconexión
+    digitalWrite(ledPinConnected, LOW);
+    digitalWrite(ledPinDisconnected, HIGH);
+    digitalWrite(ledPinConnecting, LOW);
+    // Intentar reconectar
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.print(".");
+    }
+    // Si la reconexión es exitosa, enciende el LED de conexión y apaga el LED de desconexión
+    digitalWrite(ledPinConnected, HIGH);
+    digitalWrite(ledPinDisconnected, LOW);
+  }
+  
+  delay(2000);
+  leerdht1();
+
+  ThingSpeak.writeFields(channelID,WriteAPIKey);
+  Serial.println("Datos enviados a ThingSpeak!");
+  delay(14000);
+}
+
+void leerdht1() {
+  
+  float t1 = dht1.readTemperature();
+  float h1 = dht1.readHumidity();
+
+  while (isnan(t1) || isnan(h1)){
+    Serial.println("Lectura fallida en el sensor DHT11, repitiendo lectura...");
+    delay(2000);
+    t1 = dht1.readTemperature();
+    h1 = dht1.readHumidity();
+  }
+
+  Serial.print("Temperatura DHT11: ");
+  Serial.print(t1);
+  Serial.println(" ºC.");
+
+  Serial.print("Humedad DHT11: ");
+  Serial.print(h1);
+  Serial.println(" %."); 
+
+  Serial.println("-----------------------");
+
+  ThingSpeak.setField (1,t1);
+  ThingSpeak.setField (2,h1);
+}
